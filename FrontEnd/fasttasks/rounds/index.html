@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<head>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.0.0/jquery.min.js"></script>
+</head>
+<body>
+
+<input type="text" id="n" /><br />
+<div id="fields">
+</div>
+<h2 class='result'></h2>
+<div class="simple_example"></div>
+
+
+<script src="http://d3js.org/d3.v2.min.js"></script>
+<script src="venn.js-master/venn.js"></script>
+<script>
+
+$("#n").keyup(function(){
+    var val = $(this).val();
+    addFields(val)
+});
+
+function addFields(n){
+    var html = '';
+    for(var i = 0; i < n; i++){
+        html += i+ '<input type="text" id="'+i+'" class="coords"/><br />';
+    }
+    $("#fields").html(html);
+}
+
+$(document).on('keyup', '.coords', function(){
+    var id = $(this).attr("id");
+
+    var check = $(this).val();
+    if(check.split(" ").length == 3){
+        var coords = createArray(parseInt(id)+1, 3);
+        for(var b = 0; b < parseInt(id)+1; b++){
+            var val = $("#"+b).val();
+            var arr = val.split(" ");
+            coords[b][0] = parseInt(arr[0]);
+            coords[b][1] = parseInt(arr[1]);
+            coords[b][2] = parseInt(arr[2]);
+        }
+        
+         rounds(coords, coords.length);
+    }
+});
+
+var n = 9;
+var circles = createArray(n, 3);
+
+// circles[0][0] = 2;
+// circles[0][1] = 2;
+// circles[0][2] = 2;
+
+// circles[1][0] = 5;
+// circles[1][1] = 2;
+// circles[1][2] = 2;
+
+// circles[2][0] = 2;
+// circles[2][1] = 2;
+// circles[2][2] = 4;
+
+// circles[3][0] = -2;
+// circles[3][1] = 2;
+// circles[3][2] = 1;
+
+
+circles[0][0] = 0;
+circles[0][1] = 0;
+circles[0][2] = 2;
+
+circles[1][0] = 3;
+circles[1][1] = 0;
+circles[1][2] = 2;
+
+circles[2][0] = 6;
+circles[2][1] = 0;
+circles[2][2] = 2;
+
+circles[3][0] = -7;
+circles[3][1] = 6;
+circles[3][2] = 5;
+
+circles[4][0] = 4;
+circles[4][1] = 6;
+circles[4][2] = 2;
+
+circles[5][0] = 8;
+circles[5][1] = 7;
+circles[5][2] = 5;
+
+circles[6][0] = 9;
+circles[6][1] = 0;
+circles[6][2] = 8;
+
+circles[7][0] = 19;
+circles[7][1] = 8;
+circles[7][2] = 7;
+
+circles[8][0] = 25;
+circles[8][1] = 4;
+circles[8][2] = 2;
+
+
+
+// circles[0][0] = 0;
+// circles[0][1] = 0;
+// circles[0][2] = 1;
+
+// circles[1][0] = 4;
+// circles[1][1] = 0;
+// circles[1][2] = 4;
+
+// circles[2][0] = 1;
+// circles[2][1] = 0;
+// circles[2][2] = 2;
+
+
+// 0 0 1 
+// 4 0 4 
+// 1 0 2 
+rounds(circles, n)
+
+function setCircles(){
+    n = 3;
+    var circles = createArray(n, 3);
+    circles[0][0] = 0;
+    circles[0][1] = 0;
+    circles[0][2] = 1;
+
+    circles[1][0] = 4;
+    circles[1][1] = 0;
+    circles[1][2] = 4;
+
+    circles[2][0] = 1;
+    circles[2][1] = 0;
+    circles[2][2] = 2;
+
+
+    rounds(circles, n)
+}
+
+function rounds(circles, n){
+    var z = 0;
+    n = n-1;
+
+    var mult = 0;
+    var multR = 0;
+    var coordSys = 500;
+
+    var setsz = [];
+    var overlapsz = [{sets: [0, 1], size: 1}];
+    var coords = [];
+
+    var ovrl = [];
+
+    for(var i = 0; i <= n; i++){
+        ovrl[i] = [];
+        for(var k = i+1; k <= n; k++){
+            //console.log(i+" "+k+" zc ")
+            var check = checkIn(circles[i][0], circles[k][0], circles[i][1], circles[k][1], circles[i][2], circles[k][2]);
+            if(check == true){
+                //console.log(i+" "+k)
+                ovrl[i][k] = k;
+            }
+        }
+
+    }
+    //console.log(ovrl);
+
+
+    var paths = [];
+    ro4(ovrl, 0, n, 0);
+    function ro4(map, n, last, z){
+        z++;
+        for(var k in map[n]){
+            if(k != n && map[n][k] != 'z'){
+                if(k == last){
+                    paths.push(z);
+                }else{
+                    map[n][k] = 'z';
+                    ro4(map, k, last, z);
+                }
+            }
+
+        }
+    }
+
+    var pth = paths.sort(function(a, b){return a-b});
+    if(typeof pth[0] == "undefined"){
+        $(".result").html("-1");
+    }else{
+        $(".result").html(pth[0]);
+    }
+
+    for(var l = 0; l <= n; l++){
+        x = (circles[l][0]) + coordSys;
+        y = (circles[l][1]) + coordSys;
+        c = (circles[l][2]);
+
+        setsz.push({label: l, size: 10});
+        if(l < n){
+            overlapsz.push({sets: [l, l+1], size: 1}); 
+        }
+        coords.push({x: x, y: y, c: c});
+    }
+
+    sets = venn.venn(setsz, overlapsz, coords);
+    var elements = document.getElementsByClassName('simple_example');
+    if(elements[0].innerHTML == ""){
+        venn.drawD3Diagram(d3.select(".simple_example"), sets, 1000, 700);
+    }else{
+        elements[0].innerHTML = "";
+        venn.drawD3Diagram(d3.select(".simple_example"), sets, 1000, 700);
+        //venn.updateD3Diagram(d3.select(".simple_example"), sets);
+    }
+    
+    //venn.updateD3Diagram(d3.select(".dynamic"), sets);
+
+    function checkIn(ax, bx, ay, by, r1, r2){
+        var dist = getDist(ax, bx, ay, by);
+        if( Math.pow(r1 - r2, 2) < dist && dist <= Math.pow(r1+r2, 2) ){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    function getDist(ax, bx, ay, by){
+        var dist = Math.pow(ax - bx, 2) + Math.pow(ay - by, 2);
+        return dist;
+    }
+}
+
+function createArray(length) {
+    var arr = new Array(length || 0),
+        i = length;
+
+    if (arguments.length > 1) {
+        var args = Array.prototype.slice.call(arguments, 1);
+        while(i--) arr[length-1 - i] = createArray.apply(this, args);
+    }
+
+    return arr;
+}
+
+function replaceContentInContainer(matchClass, content) {
+    var elems = document.getElementsByTagName('*'), i;
+    for (i in elems) {
+        if((' ' + elems[i].className + ' ').indexOf(' ' + matchClass + ' ')
+                > -1) {
+            elems[i].innerHTML = content;
+        }
+    }
+}
+</script>
+</body>

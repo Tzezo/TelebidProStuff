@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Simple venn.js example</title>
+</head>
+
+<body>
+    <div class="simple_example"></div>
+</body>
+
+<script src="http://d3js.org/d3.v2.min.js"></script>
+<script src="../venn.js"></script>
+<script>
+// define sets and set set intersections
+var sets = [{label: "A", size: 10}, {label: "B", size: 10}, {label: "C", size: 10}, {label: "D", size: 10}],
+    overlaps = [{sets : [0,1], size:1}, {sets : [1,2], size:1}, {sets : [2,3], size:1}];
+
+var v = 20;
+
+var coords = [{x: 2*v, y: 2*v, c: 2*v}, {x: 5*v, y: 2*v, c: 2*v}, {x: 2*v, y: 2*v, c: 4*v}, {x: (2*v)-v, y: 2*v, c: 1*v}];
+
+// get positions for each set
+sets = venn.venn(sets, overlaps, coords);
+
+// draw the diagram in the 'simple_example' div
+venn.drawD3Diagram(d3.select(".simple_example"), sets, 300, 300);
+</script>
+</html>
