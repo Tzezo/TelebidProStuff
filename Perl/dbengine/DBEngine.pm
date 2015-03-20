@@ -16,11 +16,6 @@ use Exporter;
 our @ISA = qw(Exporter);
 our @EXPORT = qw(&PrintRow);
 
-#use Search::Binary;
-
-our @ARGV;
-
-
 our $dataTypes = {
     int => 1,
     text => 2
@@ -737,7 +732,7 @@ sub Select($$$;$@)
 
             my $fh_pos = tell $fh;
             #push @{ $$return_hash{table_info} }, {row => $rowArr, row_start_position => $start_position, row_end_position => $readedBytes};
-            $callback->($fh, {row => $row_arr, row_start_position => $start_position, row_end_position => $readed_bytes}, $table_name, $filter, @callback_data);
+            $callback->($self, $fh, {row => $row_arr, row_start_position => $start_position, row_end_position => $readed_bytes}, $table_name, $filter, @callback_data);
 
             seek $fh, $fh_pos, 0;
         }
@@ -750,28 +745,27 @@ sub Select($$$;$@)
 }
 
 
-sub Delete($$)
+sub Delete($$$)
 {
-    my ($table_name, $filter, $fh) = @_;
+    my ($self, $table_name, $filter) = @_;
 
-    my $deleteRows = Select($table_name, $filter, \&DeleteRow);
+    my $deleteRows = $self->Select($table_name, $filter, \&DeleteRow);
+}
+
+
+sub Update($$$@)
+{
+
+    my ($self, $table_name, $filter, @update_data) = @_;
+
+    my $updateRows = $self->Select($table_name, $filter, \&UpdateRow, @update_data);
 
 }
 
 
-sub Update($$@)
+sub UpdateRow($$$$$@)
 {
-
-    my ($table_name, $filter, @update_data) = @_;
-
-    my $updateRows = Select($table_name, $filter, \&UpdateRow, @update_data);
-
-}
-
-
-sub UpdateRow($$$$@)
-{
-    my($fh, $row, $table_name, $filter, @update_data) = @_;
+    my($self, $fh, $row, $table_name, $filter, @update_data) = @_;
 
     lock_ex($fh);
 
@@ -788,7 +782,7 @@ sub UpdateRow($$$$@)
 
     #Delete($table_name, $filter, $fh);
 
-    DeleteRow($fh, $row, $table_name);
+    $self->DeleteRow($fh, $row, $table_name);
 
     my @update;
 
@@ -808,15 +802,13 @@ sub UpdateRow($$$$@)
 
     seek $fh, 0, 2;
 
-    InsertIntoTable($fh, $table_name, @update);
+    $self->InsertIntoTable($fh, $table_name, @update);
 
 
-    # if($ARGV[1] eq "sleep")
-    # {
-    #     print "Sleeping\n";
-    #     sleep 10;
-    #     print "Wake Up\n\n";
-    # }
+    # print "Update Sleeping\n";
+    # sleep 10;
+    # print "Wake Up\n\n";
+
 
     #sleep 5;
 
@@ -826,11 +818,11 @@ sub UpdateRow($$$$@)
 }
 
 
-sub DeleteRow($$$;$@)
+sub DeleteRow($$$$;$@)
 {
-    my($fh, $row, $table_name) = @_;
+    my($self, $fh, $row, $table_name) = @_;
 
-    lock_ex($fh);
+    lock_sh($fh);
     #my $fh;
     #open $fh, "+<", "$table_name.bin";
 
@@ -842,9 +834,9 @@ sub DeleteRow($$$;$@)
 }
 
 
-sub PrintRow($$;@)
+sub PrintRow($$$;@)
 {
-    my($fh, $row) = @_;
+    my($self, $fh, $row) = @_;
 
     for(my $k = 0; $k < @{ $$row{row} }; $k++)
     {
