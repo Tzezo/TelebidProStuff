@@ -70,12 +70,12 @@ try {
     {
         my $count = $ARGV[2];
 
-        for(my $i = 10000; $i < $count; $i++)
+        for(my $i = 1; $i < $count; $i++)
         {
             my $z = $i + 3;
 
-            #$db->InsertIntoTable(undef, $table_name, "id=$i", "id2=$z", "id3=3", "id4=4", "id5=5", "name=$one", "name2=$ten", "name3=$onehundred");
-            $db->InsertIntoTable(undef, $table_name, "id=$i", "name=$one");
+            $db->InsertIntoTable(undef, $table_name, "id=$i", "id2=$z", "id3=3", "id4=4", "id5=5", "name=$one", "name2=$ten", "name3=$onehundred");
+            #$db->InsertIntoTable(undef, $table_name, "id=$i", "name=$one");
 
             if($i % 10000 == 0)
             {
@@ -93,10 +93,11 @@ try {
     {
 
         my $z = 0;
-        for(my $i = 40; $i < 50; $i++)
+        for(my $i = 1; $i < 3; $i++)
         {
             #$db->Update($table_name, "id=$i", "id2=2", "id3=3", "id4=4", "id5=5", "name=$ten", "name2=$one", "name3=${onehundred}Tzezo1");
-            $db->Update($table_name, "id=$i", "name=$one");
+
+            $db->Update($table_name, "id=$i", "name=Tzezo");
 
             if($i % 10 == 0)
             {

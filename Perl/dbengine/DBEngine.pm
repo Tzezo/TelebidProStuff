@@ -86,7 +86,7 @@ sub lock_sh
 sub unlock {
     my ($fh) = @_;
     flock($fh, LOCK_UN) or die "Cannot unlock - $!\n";
-    print "Unlocked\n";
+    #print "Unlocked\n";
 }
 
 
@@ -216,7 +216,7 @@ sub CreateIndex($$$;$)
     my @indexed_values;
 
     my $indexRow = sub {
-        my($fh, $row, $table_name, $filter, @index_data) = @_;
+        my($self, $fh, $row, $table_name, $filter, @index_data) = @_;
 
         my $col_val;
 
@@ -514,21 +514,21 @@ sub InsertIntoTable($$$@)
     if(!$fh)
     {
         $is_insert = 1;
-        open $fh, ">>", "$table_name.bin" or die $!;
+        open $fh, "+<", "$table_name.bin" or die $!;
 
+        seek $fh, 0, 2;
 
         #UNBUFF
         # my $old_fh = select($fh);
-        # $| = 1;
         # select($old_fh);
         #UNBUFF
 
-        lock_ex($fh);
+        lock_sh($fh);
     }
 
     my $start_position = tell $fh;
 
-    print $fh pack("i", 0);
+    print $fh pack("i", 1);
 
     my $insert_data;
 
@@ -565,10 +565,14 @@ sub InsertIntoTable($$$@)
 
     my $end_position = tell $fh;
 
+    seek $fh, $start_position, 0;
+    print $fh pack("i", 0);
+
     $return_hash = {row => $row_arr, row_start_position => $start_position, row_end_position => $end_position};
 
     if($is_insert)
     {
+       seek $fh, $end_position, 0;
        close($fh) or die $!;
     }
 
@@ -731,6 +735,7 @@ sub Select($$$;$@)
         {
 
             my $fh_pos = tell $fh;
+
             #push @{ $$return_hash{table_info} }, {row => $rowArr, row_start_position => $start_position, row_end_position => $readedBytes};
             $callback->($self, $fh, {row => $row_arr, row_start_position => $start_position, row_end_position => $readed_bytes}, $table_name, $filter, @callback_data);
 
@@ -804,9 +809,6 @@ sub UpdateRow($$$$$@)
 
     $self->InsertIntoTable($fh, $table_name, @update);
 
-
-    # print "Update Sleeping\n";
-    # sleep 10;
     # print "Wake Up\n\n";
 
 
