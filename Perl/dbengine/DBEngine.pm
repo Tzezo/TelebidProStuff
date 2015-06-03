@@ -12,6 +12,7 @@ use Clone 'clone';
 use Math::BigInt;
 use Fcntl qw(:flock SEEK_END);
 use Exporter;
+#use File::stat;
 
 our @ISA = qw(Exporter);
 our @EXPORT = qw(&PrintRow);
@@ -149,9 +150,31 @@ sub CreateTable($$$)
     }
 
     close($fh);
+
     return 1;
 }
 
+=comment
+sub UpdateModificationTime($)
+{
+    my ($table_name) = @_;
+
+    my @filestat = stat("$table_name.bin");
+    
+    print Dumper @filestat;
+    print "\n\n\n";
+
+    if($filestat[9])
+    {
+        my $fh;
+        open $fh, ">", "$table_name.time" or die $!;
+        print $fh $filestat[9];
+        close $fh or die $!;
+    }
+
+    return 1;
+}
+=cut
 
 sub GetTableColumns($)
 {
@@ -208,10 +231,10 @@ sub CreateIndex($$$;$)
 
     my $index_file_name = $table_name.$col_name."index";
 
-    if(!$self->CheckTableExists($index_file_name))
-    {
-        die "Table already exist";
-    }
+    #if(!$self->CheckTableExists($index_file_name))
+    #{
+    #    die "Table already exist";
+    #}
 
     my @indexed_values;
 
@@ -235,6 +258,7 @@ sub CreateIndex($$$;$)
     $self->Select($table_name, $filter, $indexRow, $col_name);
 
     @indexed_values = sort { $$a[0] <=> $$b[0] } @indexed_values;
+    
 
     my $fh;
     open $fh, ">", "$index_file_name.bin" or die $!;
@@ -249,6 +273,8 @@ sub CreateIndex($$$;$)
 
         die "Failed index" unless $success == 2;
     }
+    
+    close $fh or die $!;
 
     return 1;
 }
@@ -265,10 +291,19 @@ sub SearchIndex($$$$)
     {
         return;
     }
+    
+    if(IsIndexOld($table_name, $col_name))
+    {
+        $self->CreateIndex($table_name, $col_name);    
+    }
 
     my $fh;
     open $fh, "<", "$index_file_name.bin" or die $!;
 
+    #my @filestat = stat("$index_file_name.bin");
+    #print Dumper @filestat;
+    #print $filestat[9]." ||| ".time."\n";
+    #die;
 
     my $size = (stat($fh))[7];
     my $num_records = $size / $index_record_size;
@@ -382,36 +417,62 @@ sub SearchIndex($$$$)
     }
 
     close($fh) or die $!;
-
+    
+    if(@$positions < 1 && IsIndexOld($table_name, $col_name))
+    {
+        return undef;
+    }
+    
     return $positions;
 }
 
 
-sub UpdateIndex($$;$$)
+sub UpdateIndex($$$;$)
 {
-    # my ($row, $table_name, $filter) = @_;
+    my ($self, $table_name, $col_name, $filter) = @_;
 
-    # if(!$filter)
-    # {
-    #     $filter = "*";
-    # }
+    my $index_file_name = $table_name.$col_name."index";
+=comment
+    if($self->CheckTableExists($index_file_name))
+    {
 
+            my @filestat = stat("$table_name.time");
+            open $fh, "<", "$table_name.time" or die $!;
 
-    # for(my $i = 0; $i < @{ $$row{row} }; $i++)
-    # {
-    #     my $col_name = $$row{row}[$i]{col_name};
+            my $mod_time = <$fh>;
 
-    #     my $index_file_name = $table_name.$col_name."index";
+            close $fh or die $!;
 
-    #     if(CheckTableExists($index_file_name))
-    #     {
-    #         next;
-    #     }
+            if($mod_time && $filestat[9] > $mod_time)
+            {
+                return undef;
+            }
 
-    #     IndexRow($row, $table_name, "*", $col_name);
-    # }
+        $self->CreateIndex($table_name, $col_name, $filter);
+    }
+=cut
+    return "";
 }
 
+sub IsIndexOld($$)
+{
+    my ($table_name, $col_name) = @_;
+    
+    my $index_file_name = $table_name.$col_name."index.bin";
+
+    if(-e $index_file_name && -e "$table_name.bin")
+    {
+        my @filestat_table = stat("$table_name.bin");
+        my @filestat_index = stat($index_file_name);
+
+        if($filestat_table[9] > $filestat_index[9])
+        {
+            return 1;
+        }
+    }
+
+    return 0;
+}
 
 sub CheckForIndex($$$$)
 {
@@ -576,7 +637,7 @@ sub InsertIntoTable($$$@)
        close($fh) or die $!;
     }
 
-    UpdateIndex($return_hash, $table_name);
+    #UpdateIndex($return_hash, $table_name);
 
     return $return_hash;
 }
@@ -626,14 +687,13 @@ sub Select($$$;$@)
         {
             $has_index = clone($has_index);
         }
-
     }
 
     seek $fh, $offset, 0;
 
     my $readed_bytes = $offset;
 
-    $$return_hash{table_info} = [];
+    #$$return_hash{table_info} = [];
 
     my $index = 0;
 
@@ -656,6 +716,7 @@ sub Select($$$;$@)
             seek $fh, $readed_bytes, 0;
         }
 
+        # print "Has index $has_index !!!!!";
         my $row;
 
         my $print_row = 0;
@@ -667,6 +728,11 @@ sub Select($$$;$@)
         $is_deleted = unpack("i", $is_deleted);
 
         my $row_arr = [];
+
+        #if($index > 10500)
+        #{
+        #    die;
+        #}
 
         for(my $i = 0; $i < @columns; $i++)
         {
@@ -736,6 +802,7 @@ sub Select($$$;$@)
 
             my $fh_pos = tell $fh;
 
+
             #push @{ $$return_hash{table_info} }, {row => $rowArr, row_start_position => $start_position, row_end_position => $readedBytes};
             $callback->($self, $fh, {row => $row_arr, row_start_position => $start_position, row_end_position => $readed_bytes}, $table_name, $filter, @callback_data);
 
@@ -743,6 +810,7 @@ sub Select($$$;$@)
         }
 
         $index++;
+
     }
     close($fh);
 
@@ -755,6 +823,7 @@ sub Delete($$$)
     my ($self, $table_name, $filter) = @_;
 
     my $deleteRows = $self->Select($table_name, $filter, \&DeleteRow);
+
 }
 
 
@@ -762,9 +831,8 @@ sub Update($$$@)
 {
 
     my ($self, $table_name, $filter, @update_data) = @_;
-
     my $updateRows = $self->Select($table_name, $filter, \&UpdateRow, @update_data);
-
+    #TODO - Index-a da se update-va
 }
 
 
