@@ -27,7 +27,7 @@ our $indexCache = {};
 
 sub new {
   	my $class = shift;
- 		my $self  = {};         # allocate new hash for object
+    my $self  = {};         # allocate new hash for object
   	bless($self, $class);
   	return $self;
 }
@@ -154,27 +154,6 @@ sub CreateTable($$$)
     return 1;
 }
 
-=comment
-sub UpdateModificationTime($)
-{
-    my ($table_name) = @_;
-
-    my @filestat = stat("$table_name.bin");
-    
-    print Dumper @filestat;
-    print "\n\n\n";
-
-    if($filestat[9])
-    {
-        my $fh;
-        open $fh, ">", "$table_name.time" or die $!;
-        print $fh $filestat[9];
-        close $fh or die $!;
-    }
-
-    return 1;
-}
-=cut
 
 sub GetTableColumns($)
 {
@@ -427,33 +406,6 @@ sub SearchIndex($$$$)
 }
 
 
-sub UpdateIndex($$$;$)
-{
-    my ($self, $table_name, $col_name, $filter) = @_;
-
-    my $index_file_name = $table_name.$col_name."index";
-=comment
-    if($self->CheckTableExists($index_file_name))
-    {
-
-            my @filestat = stat("$table_name.time");
-            open $fh, "<", "$table_name.time" or die $!;
-
-            my $mod_time = <$fh>;
-
-            close $fh or die $!;
-
-            if($mod_time && $filestat[9] > $mod_time)
-            {
-                return undef;
-            }
-
-        $self->CreateIndex($table_name, $col_name, $filter);
-    }
-=cut
-    return "";
-}
-
 sub IsIndexOld($$)
 {
     my ($table_name, $col_name) = @_;
@@ -577,18 +529,18 @@ sub InsertIntoTable($$$@)
         $is_insert = 1;
         open $fh, "+<", "$table_name.bin" or die $!;
 
-        seek $fh, 0, 2;
-
         #UNBUFF
         # my $old_fh = select($fh);
         # select($old_fh);
         #UNBUFF
 
-        lock_sh($fh);
+        lock_ex($fh);
+        
+        seek $fh, 0, 2;
     }
 
     my $start_position = tell $fh;
-
+    
     print $fh pack("i", 1);
 
     my $insert_data;
@@ -636,8 +588,6 @@ sub InsertIntoTable($$$@)
        seek $fh, $end_position, 0;
        close($fh) or die $!;
     }
-
-    #UpdateIndex($return_hash, $table_name);
 
     return $return_hash;
 }
@@ -802,8 +752,6 @@ sub Select($$$;$@)
 
             my $fh_pos = tell $fh;
 
-
-            #push @{ $$return_hash{table_info} }, {row => $rowArr, row_start_position => $start_position, row_end_position => $readedBytes};
             $callback->($self, $fh, {row => $row_arr, row_start_position => $start_position, row_end_position => $readed_bytes}, $table_name, $filter, @callback_data);
 
             seek $fh, $fh_pos, 0;
