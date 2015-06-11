@@ -118,6 +118,7 @@ sub CreateTable($$$)
 
     my $meta_data_length;
 
+    
     for(my $i = 0; $i < @cols; $i++)
     {
         my $col = trim($cols[$i]);
@@ -139,9 +140,14 @@ sub CreateTable($$$)
     open $fh, ">>:raw", "$table_name.bin" or die $!;
     binmode($fh);
 
+    my $end_pos = BigIntPack(0);
+    $meta_data_length += length $end_pos;
     my $meta_data = pack("i", $meta_data_length);
+    
+    $end_pos = BigIntPack($meta_data_length);
 
     print $fh $meta_data;
+    print $fh $end_pos;
 
     for(my $i = 0; $i < @bin_data; $i++)
     {
@@ -166,13 +172,20 @@ sub GetTableColumns($)
     my $read_to;
     read($fh, $read_to, 4) or die $!;
     $read_to = unpack("i", $read_to);
+    
+    my $readed_bytes = 8;
+
+    my $end_pos;
+    $readed_bytes += read $fh, $end_pos, 8 or die $!;
+    $end_pos = BigIntUnpack($end_pos);
 
     my @columns;
-
-    my $readed_bytes = 0;
+    
+    push @columns, {'end_pos' => $end_pos};
 
     while(1)
     {
+
         my $bytes;
 
         $readed_bytes += read $fh, $bytes, 4;
@@ -512,6 +525,9 @@ sub InsertIntoTable($$$@)
     }
 
     my @columns = GetTableColumns($table_name);
+    
+    my $end_pos = shift @columns;
+    $end_pos = $$end_pos{end_pos};
 
     my $data_hash = {};
 
@@ -534,10 +550,17 @@ sub InsertIntoTable($$$@)
         # select($old_fh);
         #UNBUFF
 
-        lock_ex($fh);
+        lock_sh($fh);
+        
+        Concurrency($fh, $table_name);
         
         seek $fh, 0, 2;
     }
+    else
+    {
+        Concurrency($fh, $table_name);
+    }
+    
 
     my $start_position = tell $fh;
     
@@ -577,6 +600,12 @@ sub InsertIntoTable($$$@)
     }
 
     my $end_position = tell $fh;
+    
+    seek $fh, 4, 0;
+    my $pack_end_position = BigIntPack($end_position);
+    print $fh $pack_end_position;
+    
+    sleep 10;
 
     seek $fh, $start_position, 0;
     print $fh pack("i", 0);
@@ -592,6 +621,36 @@ sub InsertIntoTable($$$@)
     return $return_hash;
 }
 
+sub Concurrency($$)
+{
+    my($fh, $table_name) = @_;
+
+    while(1)
+    {
+        my @columns = GetTableColumns($table_name);
+
+        my $end_pos = shift @columns;
+        $end_pos = $$end_pos{end_pos};
+
+        my $fh_pos = tell $fh;
+        seek $fh, $end_pos, 0;
+        my $dflag;
+        read $fh, $dflag, 4;
+        $dflag = unpack("i", $dflag);
+        
+        #print "in $dflag\n";
+
+        if($dflag == 1)
+        {
+            sleep 1;
+        }
+        else
+        {
+            seek $fh, $fh_pos, 0;
+            last;
+        }
+    }
+}
 
 sub Select($$$;$@)
 {
@@ -606,6 +665,9 @@ sub Select($$$;$@)
     }
 
     my @columns = GetTableColumns($table_name);
+   
+    my $end_pos = shift @columns;    
+    $end_pos = $$end_pos{end_pos};
 
     my $fh;
     open $fh, "+<", "$table_name.bin";
@@ -620,11 +682,15 @@ sub Select($$$;$@)
     ###UNBUFF
 
     lock_sh($fh);
-
+    
     my $bytes;
 
     read($fh, $bytes, 4);
     my $meta_data_length = unpack("i", $bytes);
+
+    my $end_pos;
+    read($fh, $end_pos, 8);
+
     my $offset = $meta_data_length + 4;
 
     my $has_index = 0;
@@ -683,7 +749,7 @@ sub Select($$$;$@)
         #{
         #    die;
         #}
-
+    
         for(my $i = 0; $i < @columns; $i++)
         {
             my $col_name_length;
@@ -720,6 +786,7 @@ sub Select($$$;$@)
 
             if($columns[$i]{col_name} ne $col_name)
             {
+                print $columns[$i]{col_name}, " ", $col_name;
                 die "INTERR";
             }
 
@@ -788,8 +855,8 @@ sub UpdateRow($$$$$@)
 {
     my($self, $fh, $row, $table_name, $filter, @update_data) = @_;
 
-    lock_ex($fh);
-
+    lock_sh($fh);
+   
     my $data_hash = {};
 
     for(my $i = 0; $i < @update_data; $i++)
